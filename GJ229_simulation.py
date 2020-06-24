@@ -106,3 +106,53 @@ phoenix_data=(phoenix_data-filtered_data)
 plt.scatter(phoenix_wave_data/10000, phoenix_data, alpha=1, marker='o', s=.1, color='blue')
 
 plt.show()
+
+
+# wvs = None
+# data = None
+# noise = None
+# transmission = None
+# signal = (data - noise)/transmission
+# wvs_signal = wvs*None #correct the wvs vector for the RV of the star (incl. both the barycentric RV and the planet induced RV)
+#
+# model_spline = # spline inteprolation using (wvs_signal,signal)
+#
+# #use a for loop over the RV
+# science_baryrv = None
+#
+# # for loop over rv
+# if 1:
+#       rv = None # The parameter we are after
+#       model = interpolate.splev(wvs*(1 - (rv - science_baryrv) / c_kms), model_spline, der=0) * transmission
+#
+#
+#       Npix = np.size(data)
+#       sigmas_vec = np.ones(np.size(data))*np.std(noise)
+#       norm_model = model / sigmas_vec
+#       norm_data = model / sigmas_vec
+#       max_like_amplitude = np.sum(norm_data * norm_model) / np.sum((norm_model) ** 2)
+#
+#       data_model = max_like_amplitude * model
+#       residuals = data - data_model
+#       HPFchi2 = np.nansum((ravelresiduals / sigmas_vec) ** 2)
+#
+#       max_like_amplitude_err = np.sqrt((HPFchi2 / Npix) / np.sum(norm_model ** 2))
+#
+#       logdet_Sigma = np.sum(2 * np.log(sigmas_vec))
+#       minus2logL = Npix * (1 + np.log(HPFchi2 / Npix) + logdet_Sigma + np.log(2 * np.pi))
+#
+#       slogdet_icovphi0 = np.log(1 / np.sum((norm_HPFmodel) ** 2))
+#       logpost = -0.5 * logdet_Sigma - 0.5 * slogdet_icovphi0 - (Npixs_HPFdata - 1 + 2 - 1) / (2) * np.log(HPFchi2)
+#
+#       # store:
+#       # max_like_amplitude
+#       # max_like_amplitude_err
+#       # minus2logL
+#       # logpost
+#
+# #plot minus2logL as function of the RV
+#
+# # plot posterior
+# posterior = np.exp(logpost_out-np.max(logpost_out))
+#
+# plt.plot(rv_samples,posterior)

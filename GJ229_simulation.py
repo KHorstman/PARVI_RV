@@ -88,38 +88,54 @@ plt.savefig('GJ229_simulation_spectra.pdf')
 plt.show()
 
 #plot phoenix/telluric model over simulated spectra
-
-#plt.scatter(telluric_wavelength, telluric_500_counts, alpha=1, marker='o', s=.1, color='pink')
-
-#plt.scatter(wavelength, date_01_counts, alpha=1, marker='o', s=.1, color='orange')
+#plt.xlim([1.50, 1.75])
+#plt.ylim([0,1.5])
 
 #wavelength data in angstroms
-norm_phoenix_data=np.linalg.norm(phoenix_data)
-norm_phoenix=phoenix_data/norm_phoenix_data
-
+#normalized phoenix data
 filtered_data=scipy.signal.medfilt(phoenix_data)
+phoenix_data_norm=(filtered_data/phoenix_data)
+#phoenix_data_norm=phoenix_data/np.linalg.norm(phoenix_data)
 
-phoenix_data=(phoenix_data-filtered_data)
+#normalized telluric data
+telluric_500_counts_norm=telluric_500_counts/np.sum(telluric_500_counts)
 
-#print(np.sum(norm))
-#plt.scatter(phoenix_wave_data/10000, norm_phoenix, alpha=1, marker='o', s=.1)
-plt.scatter(phoenix_wave_data/10000, phoenix_data, alpha=1, marker='o', s=.1, color='blue')
+#normalized simulated data
+date_01_counts_norm=date_01_counts/np.sum(date_01_counts)
+
+#plt.plot(telluric_wavelength, telluric_500_counts, alpha=.5, marker='o', color='pink', markersize=.1)
+plt.plot(phoenix_wave_data/10000, filtered_data, alpha=.5, marker='o', color='red', markersize=.1)
+#plt.plot(phoenix_wave_data/10000, filtered_data, alpha=.5, marker='o', color='blue', markersize=.1)
+#plt.plot(wavelength, date_01_counts, alpha=.5, marker='o', color='orange', markersize=.1)
+
+#legend
+red_patch = mpatches.Patch(color='red', label='Phoenix Model Spectra')
+pink_patch= mpatches.Patch(color='pink', label='Telluric Model Spectra')
+orange_patch= mpatches.Patch(color='orange', label='Simulated Spectra')
+plt.legend(handles=[red_patch, pink_patch, orange_patch])
+
+plt.savefig('GJ229_models_and_simulated_spectra_large.pdf')
+plt.savefig('GJ229_models_and_simulated_spectra_large.png', dpi=300)
 
 plt.show()
 
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 
-# wvs = None
-# data = None
-# noise = None
-# transmission = None
-# signal = (data - noise)/transmission
-# wvs_signal = wvs*None #correct the wvs vector for the RV of the star (incl. both the barycentric RV and the planet induced RV)
-#
+wvs = wavelength
+data = date_01_counts
+noise = date_01_noise
+transmission = date_01_trans
+signal = (data - noise)/transmission
+#wvs_signal = wvs*None #correct the wvs vector for the RV of the star (incl. both the barycentric RV and the planet induced RV)
+wvs_signal= wvs*date_01_planet_rv*date_01_planet_rv
+
 # model_spline = # spline inteprolation using (wvs_signal,signal)
-#
-# #use a for loop over the RV
-# science_baryrv = None
-#
+model_spline = scipy.interpolation.cubicspline(wvs_signal, signal)
+#scipy.interpolate.cubicspline
+
+#use a for loop over the RV
+science_baryrv = date_01_bary
+
 # # for loop over rv
 # if 1:
 #       rv = None # The parameter we are after

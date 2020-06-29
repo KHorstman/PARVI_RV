@@ -111,7 +111,7 @@ phoenix_wave_data = phoenix_wave_model[0].data
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 
 #plot phoenix/telluric model over simulated spectra
-plt.xlim([1.5, 1.57])
+plt.xlim([1.66, 1.68])
 plt.ylim([0,1])
 
 #wavelength data in angstroms
@@ -157,7 +157,7 @@ transmission = date_02_trans
 signal = (data - noise)/transmission
 #wvs_signal = wvs*None #correct the wvs vector for the RV of the star (incl. both the barycentric RV and the planet induced RV)
 #FIX UNITS
-RV=(date_02_planet_rv/1000+(date_02_bary))
+RV=(date_02_planet_rv/1000+date_02_bary)
 wvs_signal= wvs*(1+(RV/c_kms))
 #print(wvs_signal)
 
@@ -201,10 +201,14 @@ max_like_amplitude_err_out=np.array([])
 minus2logL_out=np.array([])
 logpost_out=np.array([])
 
+# - science_baryrv)
 for i in range(len(rv)):
       #The parameter we are after is rv
-      wvs_shifted= wvs*(1 - ((rv[i] - science_baryrv) / c_kms))
+      wvs_shifted= wvs*(1 + (rv[i] / c_kms))
       model = scipy.interpolate.splev(wvs_shifted, model_spline, der=0) * transmission
+      #plt.plot(wvs_shifted, model, alpha=.5, marker='o', color='royalblue', markersize=.1)
+      #plt.plot(wvs_signal, signal, alpha=.5, marker='o', color='red', markersize=.1)
+      #plt.show()
 
       #for now make sigmas_vec=1
       #sigmas_vector=1
@@ -238,9 +242,13 @@ print(minus2logL_out)
 print(max_like_amplitude_out)
 print(max_like_amplitude_err_out)
 plt.plot(rv, minus2logL_out, alpha=1, marker='o', color='pink', markersize=.1)
+plt.savefig('rv_logL_date_02.png', dpi=300)
+plt.show()
 
 #plot posterior
-#posterior = np.exp(logpost_out-np.max(logpost_out))
+posterior = np.exp(logpost_out-np.max(logpost_out))
+plt.plot(rv, posterior, alpha=1, marker='o', color='royalblue', markersize=.1)
+plt.savefig('rv_posterior_date_02.png', dpi=300)
 
 #plt.plot(rv_samples,posterior)
 plt.show()

@@ -45,8 +45,8 @@ wave_CET=spec_data_CET[0][33]
 flux_CET=spec_data_CET[1][33]
 
 #plot everything to check 
-plt.xlim([1586.3, 1601.9])
-plt.ylim([-2,2])
+#plt.xlim([1586.3, 1601.9])
+plt.ylim([0,2])
 
 # plt.plot(wave, flux, marker='o', color='royalblue', markersize=.1)
 # plt.plot(wave_CET, flux_CET, marker='o', color='pink', markersize=.1)
@@ -120,9 +120,9 @@ def convolve_spectrum_line_width(wvs,spectrum,line_widths,mypool=None):
 filtered_phoenix_data=scipy.signal.medfilt(phoenix_data_func)
 filtered_CET_data=scipy.signal.medfilt(flux_CET_func)
 filtered_spectral_data=scipy.signal.medfilt(spectral_flux_func)
-filtered_phoenix_data=phoenix_data_func-filtered_phoenix_data
-filtered_CET_data=flux_CET_func-filtered_CET_data
-filtered_spectral_data=(spectral_flux_func-filtered_spectral_data)/100
+filtered_phoenix_data=phoenix_data_func/filtered_phoenix_data
+filtered_CET_data=flux_CET_func/filtered_CET_data
+filtered_spectral_data=spectral_flux_func/filtered_spectral_data
 
 #broaden the lines of the steallar model 
 #specpool = mp.Pool(processes=4)
@@ -130,7 +130,7 @@ convolve_phoenix_data=convolve_spectrum_line_width(xnew, phoenix_data_func, line
 convolve_phoenix_data_GJ229=convolve_spectrum_line_width(xnew, phoenix_data_GJ229_func, line_widths_parvi, mypool=None)
 
 filtered_phoenix_GJ229_data=scipy.signal.medfilt(convolve_phoenix_data_GJ229)
-filtered_phoenix_GJ229_data=(convolve_phoenix_data_GJ229-filtered_phoenix_GJ229_data)/3.e11
+filtered_phoenix_GJ229_data=convolve_phoenix_data_GJ229/filtered_phoenix_GJ229_data
 #plt.plot(xnew, phoenix_data_func, marker='o', color='royalblue', markersize=.1)
 #plt.plot(xnew, convolve_phoenix_data, marker='o', color='orange', markersize=.1)
 
@@ -138,20 +138,22 @@ filtered_phoenix_GJ229_data=(convolve_phoenix_data_GJ229-filtered_phoenix_GJ229_
 
 #get telluric data
 adjusted_phoenix_data=convolve_phoenix_data/1.e11
-telluric_amp=flux_CET_func/adjusted_phoenix_data
+telluric_amp=(flux_CET_func/convolve_phoenix_data)*1.e11
+
+# convolve_telluric_data=convolve_spectrum_line_width(xnew, telluric_amp, line_widths_parvi, mypool=None)
 
 filtered_telluric_data=scipy.signal.medfilt(telluric_amp)
-filtered_telluric_data=(telluric_amp-filtered_telluric_data)*10
+filtered_telluric_data=(telluric_amp/filtered_telluric_data)
 
-model_spectra=filtered_phoenix_GJ229_data*filtered_spectral_data
+model_spectra=filtered_phoenix_GJ229_data*filtered_telluric_data
 
 #plt.plot(wave, flux, marker='o', color='royalblue', markersize=.1)
 #plt.plot(xnew, flux_CET_func, marker='o', color='pink', markersize=.1)
-#plt.plot(xnew, phoenix_data_func/1.e11, marker='o', color='green', markersize=.1)
+#plt.plot(xnew, filtered_phoenix_data, marker='o', color='pink', markersize=.1)
 plt.plot(xnew, filtered_spectral_data, marker='o', color='blue', markersize=.1)
 #plt.plot(xnew, filtered_CET_data, marker='o', color='red', markersize=.1)
 #plt.plot(xnew, filtered_phoenix_GJ229_data, marker='o', color='darkgreen', markersize=.1)
 #plt.plot(xnew, filtered_telluric_data, marker='o', color='orange', markersize=.1)
-plt.plot(xnew, model_spectra, marker='o', color='purple', markersize=.1)
+plt.plot(xnew, model_spectra**10, marker='o', color='red', markersize=.1)
 
 plt.show()

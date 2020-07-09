@@ -36,17 +36,21 @@ phoenix_data = phoenix_model[0].data[crop_phoenix]
 #phoenix model for GJ229
 phoenix_model_GJ229 = fits.open('lte03700-5.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits')
 phoenix_data_GJ229 = phoenix_model_GJ229[0].data[crop_phoenix]
+#plt.plot(phoenix_wvs, phoenix_data_GJ229, marker='o', color='darkgreen', markersize=.1, label="GJ229 model")
+#plt.show()
 
 #raw flux vs wavelength of order 33
-wave = spec_data[0][33]
-flux = spec_data[1][33]
+wave = spec_data[0][36]
+flux = spec_data[1][36]
 
-wave_CET=spec_data_CET[0][33]
-flux_CET=spec_data_CET[1][33]
+wave_CET=spec_data_CET[0][36]
+flux_CET=spec_data_CET[1][36]
+
+print(wave)
 
 #plot everything to check 
-#plt.xlim([1586.3, 1601.9])
-plt.ylim([0,2])
+#plt.xlim([1640, 1656])
+#plt.ylim([0,2])
 
 # plt.plot(wave, flux, marker='o', color='royalblue', markersize=.1)
 # plt.plot(wave_CET, flux_CET, marker='o', color='pink', markersize=.1)
@@ -65,7 +69,7 @@ flux_CET_int=scipy.interpolate.interp1d(wave_CET, flux_CET, kind='linear')
 spectral_data_int=scipy.interpolate.interp1d(wave, flux, kind='linear')
 phoenix_data_GJ229_int=scipy.interpolate.interp1d(phoenix_wvs, phoenix_data_GJ229)
 
-xnew=np.arange(1586.2, 1602, 0.01)
+xnew=np.arange(1641, 1656, 0.01)
 phoenix_data_func=phoenix_data_int(xnew)
 flux_CET_func=flux_CET_int(xnew)
 spectral_flux_func=spectral_data_int(xnew)
@@ -117,19 +121,19 @@ def convolve_spectrum_line_width(wvs,spectrum,line_widths,mypool=None):
 # np.savetxt('wave_CET.txt', wave_CET, fmt='%d')
 
 #flatten the shape of the curves
-filtered_phoenix_data=scipy.signal.medfilt(phoenix_data_func)
-filtered_CET_data=scipy.signal.medfilt(flux_CET_func)
-filtered_spectral_data=scipy.signal.medfilt(spectral_flux_func)
-filtered_phoenix_data=phoenix_data_func/filtered_phoenix_data
-filtered_CET_data=flux_CET_func/filtered_CET_data
-filtered_spectral_data=spectral_flux_func/filtered_spectral_data
+filtered_phoenix_data=scipy.signal.medfilt(phoenix_data_func, 101)
+filtered_CET_data=scipy.signal.medfilt(flux_CET_func, 101)
+filtered_spectral_data=scipy.signal.medfilt(spectral_flux_func, 101)
+filtered_phoenix_data=phoenix_data_func-filtered_phoenix_data
+filtered_CET_data=flux_CET_func-filtered_CET_data
+filtered_spectral_data=spectral_flux_func-filtered_spectral_data
 
 #broaden the lines of the steallar model 
 #specpool = mp.Pool(processes=4)
 convolve_phoenix_data=convolve_spectrum_line_width(xnew, phoenix_data_func, line_widths_parvi, mypool=None)
 convolve_phoenix_data_GJ229=convolve_spectrum_line_width(xnew, phoenix_data_GJ229_func, line_widths_parvi, mypool=None)
 
-filtered_phoenix_GJ229_data=scipy.signal.medfilt(convolve_phoenix_data_GJ229)
+filtered_phoenix_GJ229_data=scipy.signal.medfilt(convolve_phoenix_data_GJ229, 101)
 filtered_phoenix_GJ229_data=convolve_phoenix_data_GJ229/filtered_phoenix_GJ229_data
 #plt.plot(xnew, phoenix_data_func, marker='o', color='royalblue', markersize=.1)
 #plt.plot(xnew, convolve_phoenix_data, marker='o', color='orange', markersize=.1)
@@ -137,23 +141,106 @@ filtered_phoenix_GJ229_data=convolve_phoenix_data_GJ229/filtered_phoenix_GJ229_d
 #plt.show()
 
 #get telluric data
-adjusted_phoenix_data=convolve_phoenix_data/1.e11
-telluric_amp=(flux_CET_func/convolve_phoenix_data)*1.e11
+adjusted_phoenix_data=convolve_phoenix_data/np.std(convolve_phoenix_data)
+telluric_amp=(flux_CET_func/convolve_phoenix_data)
 
 # convolve_telluric_data=convolve_spectrum_line_width(xnew, telluric_amp, line_widths_parvi, mypool=None)
 
-filtered_telluric_data=scipy.signal.medfilt(telluric_amp)
-filtered_telluric_data=(telluric_amp/filtered_telluric_data)
+filtered_telluric_data=scipy.signal.medfilt(telluric_amp, 101)
+filtered_telluric_data=(telluric_amp-filtered_telluric_data)
 
-model_spectra=filtered_phoenix_GJ229_data*filtered_telluric_data
+model_spectra=convolve_phoenix_data_GJ229*telluric_amp
+filtered_model_data=scipy.signal.medfilt(model_spectra, 101)
+filtered_model_data=(model_spectra-filtered_model_data)
 
 #plt.plot(wave, flux, marker='o', color='royalblue', markersize=.1)
 #plt.plot(xnew, flux_CET_func, marker='o', color='pink', markersize=.1)
-#plt.plot(xnew, filtered_phoenix_data, marker='o', color='pink', markersize=.1)
-plt.plot(xnew, filtered_spectral_data, marker='o', color='blue', markersize=.1)
-#plt.plot(xnew, filtered_CET_data, marker='o', color='red', markersize=.1)
-#plt.plot(xnew, filtered_phoenix_GJ229_data, marker='o', color='darkgreen', markersize=.1)
-#plt.plot(xnew, filtered_telluric_data, marker='o', color='orange', markersize=.1)
-plt.plot(xnew, model_spectra**10, marker='o', color='red', markersize=.1)
+#plt.plot(xnew, filtered_phoenix_data/np.std(filtered_phoenix_data), marker='o', color='pink', markersize=.1, label='phoenix model A0')
+#plt.plot(xnew, filtered_spectral_data/np.std(filtered_spectral_data), marker='o', color='blue', markersize=.1, label='on sky data', alpha=.5)
+#plt.plot(xnew, filtered_CET_data/np.std(filtered_CET_data), marker='o', color='red', markersize=.1, label='AO')
+##plt.plot(xnew, filtered_telluric_data/np.std(filtered_telluric_data), marker='o', color='green', markersize=.1, label='telluric data', alpha=.5)
+#plt.plot(xnew, filtered_model_data/np.std(filtered_model_data), marker='o', color='red', markersize=.1, label='model', alpha=.5)
 
+#plt.legend()
+
+#plt.show()
+
+#forward modeling approach
+
+c_ms=3*10**8
+c_kms=3*10**5
+
+bary=np.full((1, len(xnew)), 1)
+noise=np.random.normal(0, 1, len(xnew))
+
+wvs = xnew
+transmission= telluric_amp
+signal = model_spectra
+data = model_spectra
+RV=bary[0]
+wvs_signal= wvs*(1+(RV/c_kms))
+
+wvs=wvs.tolist()
+#signal=signal.tolist()
+RV=RV.tolist()
+#wvs_signal=wvs_signal.tolist()
+
+#model_spline
+model_spline=scipy.interpolate.splrep(wvs_signal, signal)
+
+#radial velocity range but dont know what it should be including barycentric motion (havent gotten rid of it yet)
+rv=np.array(np.arange(0, 150, 1))
+
+minus2logL_out=np.array([])
+logpost_out=np.array([])
+
+for i in range(len(rv)):
+    #The parameter we are after is rv
+    wvs_shifted= wvs*(1 + ((rv[i]+bary) / c_kms))
+    model = scipy.interpolate.splev(wvs_shifted, model_spline, der=0) * transmission
+    #plt.plot(wvs_shifted, model, alpha=.5, marker='o', color='royalblue', markersize=.1)
+    #plt.plot(wvs_signal, signal, alpha=.5, marker='o', color='red', markersize=.1)
+    #plt.show()
+
+    Npix = np.size(data)
+    #made noise vector 1 just because I dont know what it is right now
+    sigmas_vec = np.ones(np.size(data))*np.std(noise)
+    norm_model = model / sigmas_vec
+    norm_data = model / sigmas_vec
+    max_like_amplitude = np.sum(norm_data * norm_model) / np.sum((norm_model) ** 2)
+    #max_like_amplitude_out_01[j].append(max_like_amplitude)
+
+    data_model = max_like_amplitude * model
+    residuals = data - data_model
+    HPFchi2 = np.nansum((residuals / sigmas_vec) ** 2)
+
+    max_like_amplitude_err = np.sqrt((HPFchi2 / Npix) / np.sum(norm_model ** 2))
+    #max_like_amplitude_err_out_01[j].append(max_like_amplitude_err)
+
+    logdet_Sigma = np.sum(2 * np.log(sigmas_vec))
+    minus2logL = Npix * (1 + np.log(HPFchi2 / Npix) + logdet_Sigma + np.log(2 * np.pi))
+    minus2logL_out=np.append(minus2logL, minus2logL_out)
+
+    slogdet_icovphi0 = np.log(1 / np.sum((norm_data) ** 2))
+    logpost = -0.5 * logdet_Sigma - 0.5 * slogdet_icovphi0 - (Npix - 1 + 2 - 1) / (2) * np.log(HPFchi2)
+    logpost_out=np.append(logpost, logpost_out)
+
+#plot minus2logL as function of the rv
+#print(rv)
+#print(minus2logL_out)
+#print(max_like_amplitude_out)
+#print(max_like_amplitude_err_out)
+plt.plot(rv, minus2logL_out, alpha=1, marker='o', color='royalblue', markersize=.1)
+#plt.savefig('rv_logL_date_02.png', dpi=300)
 plt.show()
+
+#plot posterior
+posterior = np.exp(logpost_out-np.max(logpost_out))
+plt.plot(rv, posterior, alpha=1, marker='o', color='royalblue', markersize=.1)
+#plt.savefig('rv_posterior_date_02.png', dpi=300)
+plt.show()
+
+xmax = rv[np.argmax(posterior)]
+ymax = posterior.max()
+
+print(xmax)

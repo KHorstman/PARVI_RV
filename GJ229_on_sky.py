@@ -40,13 +40,19 @@ phoenix_data_GJ229 = phoenix_model_GJ229[0].data[crop_phoenix]
 #plt.show()
 
 #raw flux vs wavelength of order 33
-wave = spec_data[0][36]
-flux = spec_data[1][36]
+wave = spec_data[0][35]
+flux = spec_data[1][35]
+wave_2= spec_data[0][36]
+flux_2= spec_data[1][36]
+wave=np.append(wave, wave_2)
+flux=np.append(flux, flux_2)
 
-wave_CET=spec_data_CET[0][36]
-flux_CET=spec_data_CET[1][36]
-
-print(wave)
+wave_CET=spec_data_CET[0][35]
+flux_CET=spec_data_CET[1][35]
+wave_CET_2=spec_data_CET[0][36]
+flux_CET_2=spec_data_CET[1][36]
+wave_CET=np.append(wave_CET, wave_CET_2)
+flux_CET=np.append(flux_CET, flux_CET_2)
 
 #plot everything to check 
 #plt.xlim([1640, 1656])
@@ -69,7 +75,7 @@ flux_CET_int=scipy.interpolate.interp1d(wave_CET, flux_CET, kind='linear')
 spectral_data_int=scipy.interpolate.interp1d(wave, flux, kind='linear')
 phoenix_data_GJ229_int=scipy.interpolate.interp1d(phoenix_wvs, phoenix_data_GJ229)
 
-xnew=np.arange(1641, 1656, 0.01)
+xnew=np.arange(wave[100], 1638, 0.001)
 phoenix_data_func=phoenix_data_int(xnew)
 flux_CET_func=flux_CET_int(xnew)
 spectral_flux_func=spectral_data_int(xnew)
@@ -170,37 +176,61 @@ filtered_model_data=(model_spectra-filtered_model_data)
 c_ms=3*10**8
 c_kms=3*10**5
 
-bary=np.full((1, len(xnew)), 1)
-noise=np.random.normal(0, 1, len(xnew))
+#crop wavelength to avoid small amplitude
+crop_wavelength = np.where((xnew>1625) & (xnew<1634))
+#print(xnew[crop_wavelength])
+
+spectra= spectral_flux_func/telluric_amp
+noise=spectra/convolve_phoenix_data_GJ229
+A0_rv=0 #km/s
+A0_baryrv=1 #km/s
+GJ229_rv=np.full((1, len(xnew)), 3)
+GJ229_baryrv=np.full((1, len(xnew[crop_wavelength])), 20)
 
 wvs = xnew
 transmission= telluric_amp
-signal = model_spectra
-data = model_spectra
-RV=bary[0]
-wvs_signal= wvs*(1+(RV/c_kms))
+data = spectral_flux_func
+signal = data/transmission
+#RV=GJ229_rv+GJ229_baryrv
+wvs_signal= (xnew*(1-(A0_rv-A0_baryrv)/c_kms))
+test=spectral_flux_func/telluric_amp
+shift=np.full((1, len(xnew)), (1 - ((-45) / c_kms)))
+#print(shift)
 
-wvs=wvs.tolist()
-#signal=signal.tolist()
-RV=RV.tolist()
-#wvs_signal=wvs_signal.tolist()
+#print(wvs_signal)
+# plt.plot(xnew*shift[0], model_spectra/np.std(model_spectra), marker='o', color='red', markersize=.1, label='model', alpha=.5)
+# plt.plot(xnew, phoenix_data_GJ229_func/np.std(phoenix_data_GJ229_func), marker='o', color='pink', markersize=.1, label='phoenix model GJ229')
+# plt.plot(xnew, spectral_flux_func/np.std(spectral_flux_func), marker='o', color='blue', markersize=.1, label='on sky data', alpha=.5)
+# plt.legend()
+# plt.show()
 
 #model_spline
 model_spline=scipy.interpolate.splrep(wvs_signal, signal)
+# plt.plot(wvs_signal, signal)
+# plt.show()
+
+wvs=wvs[crop_wavelength]
+
+wvs=wvs.tolist()
+#signal=signal.tolist()
+#RV=RV.tolist()
+GJ229_baryrv=GJ229_baryrv.tolist()
+#wvs_signal=wvs_signal.tolist()
+data=data[crop_wavelength]
 
 #radial velocity range but dont know what it should be including barycentric motion (havent gotten rid of it yet)
-rv=np.array(np.arange(0, 150, 1))
+rv=np.array(np.arange(0, 200, .1))
 
 minus2logL_out=np.array([])
 logpost_out=np.array([])
 
 for i in range(len(rv)):
     #The parameter we are after is rv
-    wvs_shifted= wvs*(1 + ((rv[i]+bary) / c_kms))
-    model = scipy.interpolate.splev(wvs_shifted, model_spline, der=0) * transmission
-    #plt.plot(wvs_shifted, model, alpha=.5, marker='o', color='royalblue', markersize=.1)
+    wvs_shifted= wvs*(1 - ((rv[i]+GJ229_baryrv) / c_kms))
+    model = scipy.interpolate.splev(wvs_shifted, model_spline, der=0) * transmission[crop_wavelength]
+    plt.plot(wvs_shifted, model, alpha=1, marker='o', color='royalblue', markersize=.1)
     #plt.plot(wvs_signal, signal, alpha=.5, marker='o', color='red', markersize=.1)
-    #plt.show()
+    plt.show()
 
     Npix = np.size(data)
     #made noise vector 1 just because I dont know what it is right now
@@ -242,5 +272,7 @@ plt.show()
 
 xmax = rv[np.argmax(posterior)]
 ymax = posterior.max()
+xmin = rv[np.argmin(minus2logL_out)]
 
 print(xmax)
+print(xmin)

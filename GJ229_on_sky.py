@@ -17,24 +17,31 @@ from astropy import units as u
 from astropy.utils import iers
 from astropy.utils.iers import conf as iers_conf
 
+
 #read in one of the .fits files (GJ229)
 GJ229_one = fits.open('GJ229_R01_20191118101601_deg0_sp.fits')
 spec_data = GJ229_one[1].data
 hdu=fits.PrimaryHDU()
-#print(GJ229_one[0].header['DIRNAME'])
+#print(GJ229_one[0].header)
 #print(np.shape(spec_data))
 
-# #set up the script to calculate barycentric motions for earth compared to different stars
-# #print(iers_conf.iers_auto_url)
-# #default_iers = iers_conf.iers_auto_url
-# #print(default_iers)
-# iers_conf.iers_auto_url = 'https://datacenter.iers.org/data/9/finals2000A.all'
-# iers_conf.iers_auto_url_mirror = 'ftp://cddis.gsfc.nasa.gov/pub/products/iers/finals2000A.all'
-# iers.IERS_Auto.open()  # Note the URL
-# palomar = EarthLocation.from_geodetic(lat=33.3563*u.deg, lon=116.8650*u.deg, height=1712*u.m)
-# sc = SkyCoord(228.6122764979232 * u.deg, -18.4391807524145 * u.deg)
-# # barycorr = sc.radial_velocity_correction(obstime=Time(float(GJ229_one[0].header["DIRNAME"]), format='datetime64', scale="utc"), location=palomar)
-# # print(barycorr.to(u.km/u.s).value)
+#set up the script to calculate barycentric motions for earth compared to different stars
+#print(iers_conf.iers_auto_url)
+#default_iers = iers_conf.iers_auto_url
+#print(default_iers)
+iers_conf.iers_auto_url = 'https://datacenter.iers.org/data/9/finals2000A.all'
+iers_conf.iers_auto_url_mirror = 'ftp://cddis.gsfc.nasa.gov/pub/products/iers/finals2000A.all'
+iers.IERS_Auto.open()  # Note the URL
+palomar = EarthLocation.from_geodetic(lat=33.3563*u.deg, lon=116.8650*u.deg, height=1712*u.m)
+sc = SkyCoord(228.6122764979232 * u.deg, -18.4391807524145 * u.deg)
+
+#change date into correct format
+date=GJ229_one[0].header["DIRNAME"]
+date= date[0:4]+"-"+date[4:6]+"-"+date[6:8]+"T"+date[8:10]+":"+date[10:12]+":"+date[12:14]
+print(date)
+
+barycorr = sc.radial_velocity_correction(obstime=Time(str(date), format='isot', scale="utc"), location=palomar)
+print(barycorr.to(u.km/u.s).value)
 
 #read in standard star (93CET for Nov observations)
 CET_nov = fits.open('93CET_R01_20191118083912_deg0_sp.fits')
@@ -45,7 +52,7 @@ spec_data_CET = CET_nov[1].data
 phoenix_wave = fits.open('WAVE_PHOENIX-ACES-AGSS-COND-2011.fits')
 phoenix_wvs = phoenix_wave[0].data/1.e1
 
-crop_phoenix = np.where((phoenix_wvs>1000) & (phoenix_wvs<2000))
+crop_phoenix = np.where((phoenix_wvs>1400) & (phoenix_wvs<1800))
 phoenix_wvs = phoenix_wvs[crop_phoenix]
 #print(phoenix_wvs)
 
@@ -110,6 +117,7 @@ def convolve_spectrum_line_width(wvs,spectrum,line_widths,mypool=None):
 
     chunk_size=100
     N_chunks = np.size(spectrum)//chunk_size
+    #chunk_size=np.size(spectrum)//N_chunks
     indices_list = []
     for k in range(N_chunks-1):
         indices_list.append(np.arange(k*chunk_size,(k+1)*chunk_size).astype(np.int))
@@ -140,18 +148,22 @@ def convolve_spectrum_line_width(wvs,spectrum,line_widths,mypool=None):
 #broaden the lines of the steallar model 
 #specpool = mp.Pool(processes=4)
 convolve_phoenix_data_CET=convolve_spectrum_line_width(phoenix_wvs, phoenix_data, line_widths_parvi, mypool=None)
+#specpool.join()
 convolve_phoenix_data_GJ229=convolve_spectrum_line_width(phoenix_wvs, phoenix_data_GJ229, line_widths_parvi, mypool=None)
 
 #get telluric data
 phoenix_data_CET_int=scipy.interpolate.interp1d(phoenix_wvs, convolve_phoenix_data_CET, kind='linear', bounds_error=False, fill_value=1)
-CET_int=scipy.interpolate.interp1d(wave_CET, flux_CET, kind='linear', bounds_error=False, fill_value=1)
+#CET_int=scipy.interpolate.interp1d(wave_CET, flux_CET, kind='linear', bounds_error=False, fill_value=1)
 
-wvs_new=np.arange(wave[0], wave[2047], 0.001) #interpolate based on the science 
-phoenix_data_CET_func=phoenix_data_CET_int(wvs_new)
-CET_func=CET_int(wvs_new)
+#wvs_new=np.arange(wave[0], wave[2047], 0.001) #interpolate based on the science 
+phoenix_data_CET_func=phoenix_data_CET_int(wave_CET)
+#CET_func=CET_int(wvs_new)
 
-telluric_amp=(CET_func/phoenix_data_CET_func)
+#new_vector = np.array(pd.DataFrame(flux_CET).interpolate(method="linear").fillna(method="bfill").fillna(method="ffill"))
+flux_CET[np.where(np.isnan(flux_CET))] = np.nanmedian(flux_CET)
+telluric_amp=(flux_CET/phoenix_data_CET_func)
 transmission=telluric_amp
+transmission_spline = scipy.interpolate.splrep(wave_CET, transmission)
 
 #filter on sky data
 # print(flux)
@@ -213,15 +225,15 @@ c_ms=3*10**8
 c_kms=3*10**5
 
 #crop wavelength to avoid small amplitude
-crop_wavelength = np.where((wvs_new>wave[110]) & (wvs_new<wave[1990]))
+#crop_wavelength = np.where((wvs_new>wave[110]) & (wvs_new<wave[1990]))
 #print(xnew[crop_wavelength])
 
 #spectra= spectral_flux_func/telluric_amp
-GJ229_rv=np.full((1, len(wvs_new)), 0)
-GJ229_baryrv=np.full((1, len(wvs_new)), 0)
+GJ229_rv=np.full((1, len(wave)), 0)
+GJ229_baryrv=np.full((1, len(wave)), 0)
 
-wvs = wvs_new
-noise=np.random.normal(10, 1, len(wvs_new))
+wvs = wave  #wvs_new
+noise=np.random.normal(10, 1, len(wave))
 data = filtered_spectral_data
 #print(data)
 #print(data[crop_wavelength])
@@ -250,38 +262,43 @@ model_spline=scipy.interpolate.splrep(phoenix_wvs, convolve_phoenix_data_GJ229)
 # # plt.legend()
 # # plt.show()
 
-wvs=wvs[crop_wavelength]
-GJ229_baryrv=GJ229_baryrv[0][crop_wavelength]
+# wvs=wvs[crop_wavelength]
+# GJ229_baryrv=GJ229_baryrv[0][crop_wavelength]
 
-wvs=wvs.tolist()
+#wvs=wvs.tolist()
 #signal=signal.tolist()
 #RV=RV.tolist()
-GJ229_baryrv=GJ229_baryrv.tolist()
+#GJ229_baryrv=GJ229_baryrv.tolist()
 #wvs_signal=wvs_signal.tolist()
 #data=data[crop_wavelength]
 
 #radial velocity range but dont know what it should be including barycentric motion (havent gotten rid of it yet)
-rv=np.array(np.arange(0, 100, .1))
+rv=np.array(np.arange(-20, 0, 1))
 
 minus2logL_out=np.array([])
 logpost_out=np.array([])
 
 for i in range(len(rv)):
     #The parameter we are after is rv
-    wvs_shifted= wvs*(1 - ((rv[i]+GJ229_baryrv) / c_kms))
+    wvs_shifted= wvs*(1 - ((rv[i]) / c_kms))
     model = scipy.interpolate.splev(wvs_shifted, model_spline, der=0)
-    model= model*transmission[crop_wavelength]
+    transmission = scipy.interpolate.splev(wvs, transmission_spline, der=0)
+    model= model*transmission       #[crop_wavelength]
+    print(len(model))
     #make model same size array as on sky data
     #print(len(wvs_shifted[0]))
     #print(len(model[0]))
-    model=scipy.interpolate.interp1d(wvs_shifted, model, kind='linear', bounds_error=False, fill_value=1)
-    new_range=np.array(np.arange(wave[0], wave[2047], .00804740910))
-    model=model(new_range)
+    #model=scipy.interpolate.interp1d(wvs_shifted, model, kind='linear', bounds_error=False, fill_value=1)
+    #new_range=np.array(np.arange(wave[0], wave[2047], .00804740910))
+    #model=model(new_range)
     #filter model
     model_filter=scipy.signal.medfilt(model, 101)
     model=model-model_filter
     model=model[nans]
     #print(len(data))
+    # print([i])
+    # print(np.isnan(np.sum(data)))
+    # print(np.isnan(np.sum(model)))
 
     # plt.plot(new_range[nans], model*5, alpha=1, marker='o', color='royalblue', markersize=1, label='model')
     # plt.plot(wave[nans], data, alpha=.5, marker='o', color='red', markersize=.1, label='data')
@@ -314,11 +331,11 @@ for i in range(len(rv)):
     logdet_Sigma = np.sum(2 * np.log(sigmas_vec))
     minus2logL = Npix * (1 + np.log(HPFchi2 / Npix) + logdet_Sigma + np.log(2 * np.pi))
     #print(HPFchi2)
-    minus2logL_out=np.append(minus2logL, minus2logL_out)
+    minus2logL_out=np.append(minus2logL_out, minus2logL)
 
     slogdet_icovphi0 = np.log(1 / np.sum((norm_data) ** 2))
     logpost = -0.5 * logdet_Sigma - 0.5 * slogdet_icovphi0 - (Npix - 1 + 2 - 1) / (2) * np.log(HPFchi2)
-    logpost_out=np.append(logpost, logpost_out)
+    logpost_out=np.append(logpost_out, logpost)
 
 #plot minus2logL as function of the rv
 #print(rv)

@@ -16,9 +16,11 @@ from astropy.coordinates import SkyCoord, EarthLocation
 from astropy import units as u
 from astropy.utils import iers
 from astropy.utils.iers import conf as iers_conf
+import matplotlib.cm as cm
 
 #read in one of the .fits files (GJ229)
 GJ229_nov = fits.open("GJ229_R01_20191118101601_deg0_sp.fits")
+#"GJ229_R01_20191118101601_deg0_sp.fits"
 spec_data = GJ229_nov[1].data
 
 #set up the script to calculate barycentric motions for earth compared to different stars
@@ -28,16 +30,27 @@ iers.IERS_Auto.open()  # Note the URL
 palomar = EarthLocation.from_geodetic(lat=33.3563*u.deg, lon=116.8650*u.deg, height=1712*u.m)
 
 #sky coordinates for GJ229
-sc = SkyCoord(228.6122764979232 * u.deg, -18.4391807524145 * u.deg)
+#coords=["06:08:28.1354366884 -21:50:35.095535467", "06 08 28.1354366884 -21 50 35.095535467"]
+sc = SkyCoord("06 10 34.6152510171 -21 51 52.658021185", unit=(u.hourangle, u.deg))
+
+# #find distance between two objects in the sky (GJ229 and HR1544)
+# c1=SkyCoord("06 10 34.6152510171 -21 51 52.658021185", unit=(u.hourangle, u.deg))
+# c2=SkyCoord("04 50 36.7229825 +08 54 00.649333", unit=(u.hourangle, u.deg))
+# sep = c1.separation(c2)
+# print('The separation is')
+# print(sep)
+# exit()
 
 #change date into correct format
 date=GJ229_nov[0].header["DIRNAME"]
 date= date[0:4]+"-"+date[4:6]+"-"+date[6:8]+"T"+date[8:10]+":"+date[10:12]+":"+date[12:14]
-#print(date)
+date_JD=Time(date, format='isot', scale='utc')
+date_JD=date_JD.mjd
+#print(date_JD)
 
 barycorr = sc.radial_velocity_correction(obstime=Time(str(date), format='isot', scale="utc"), location=palomar)
 barycorr = barycorr.to(u.km/u.s).value
-print(barycorr)
+#print(barycorr)
 
 #read in standard star (93CET for Nov observations)
 CET_nov = fits.open('93CET_R01_20191118083912_deg0_sp.fits')
@@ -65,8 +78,15 @@ wave = spec_data[0][35]
 flux = spec_data[1][35]
 noise = spec_data[2][35]
 
+for order in range(0,43):
+    plt.plot(spec_data[0][order], spec_data[1][order], label='Order'+f"{[order]}")
+plt.legend()
+plt.show()
+
 wave_CET=spec_data_CET[0][35]
 flux_CET=spec_data_CET[1][35]
+
+#print(flux)
 
 #get rid of nans in the noise array 
 noise[np.where(np.isnan(noise))] = np.nanmedian(noise)
@@ -125,14 +145,23 @@ convolve_phoenix_data_GJ229=convolve_spectrum_line_width(phoenix_wvs, phoenix_da
 #define new wavelength range based on science (ie the wavelength range and step size of the standard star obs)
 phoenix_data_CET_int=scipy.interpolate.interp1d(phoenix_wvs, convolve_phoenix_data_CET, kind='linear', bounds_error=False, fill_value=1)
 phoenix_data_CET_func=phoenix_data_CET_int(wave_CET)
-flux_CET[np.where(np.isnan(flux_CET))] = np.nanmedian(flux_CET)
+#flux_CET[np.where(np.isnan(flux_CET))] = np.nanmedian(flux_CET)
 telluric_amp=(flux_CET/phoenix_data_CET_func)
+#print(telluric_amp)
+#telluric_nans=np.where(np.isfinite(telluric_amp))
 transmission=telluric_amp
-transmission_spline = scipy.interpolate.splrep(wave_CET, transmission)
+#print(transmission)
+# plt.plot(wave_CET[telluric_nans], transmission/np.std(transmission), alpha=1, marker='o', color='royalblue', markersize=1, label='model')
+# plt.show()
+# transmission_spline = scipy.interpolate.splrep(wave_CET[telluric_nans], transmission)
+# plt.plot(wave_CET, scipy.interpolate.splev(wave, transmission_spline))
+# plt.show()
 
 #filter on sky data
-filtered_spectral_data=scipy.signal.medfilt(flux, 101)
+#filtered_spectral_data=scipy.signal.medfilt(flux, 501)
+filtered_spectral_data=np.nanmean(flux)
 filtered_spectral_data=flux-filtered_spectral_data
+#filtered_spectral_data[np.where(np.isnan(filtered_spectral_data))] = np.nanmedian(filtered_spectral_data)
 nans=np.where(np.isfinite(filtered_spectral_data))
 filtered_spectral_data=filtered_spectral_data[nans]
 
@@ -140,34 +169,69 @@ filtered_spectral_data=filtered_spectral_data[nans]
 
 c_kms=2.99792e5
 
+#crop_data = np.where((filtered_spectral_data>1622) & (filtered_spectral_data<1640))
+
 wvs = wave
 data = filtered_spectral_data
+
+#print(wvs, data)
 
 #model_spline
 model_spline=scipy.interpolate.splrep(phoenix_wvs, convolve_phoenix_data_GJ229)
 
 #radial velocity range
-rv=np.array(np.arange(-10, 10, .01))
+rv=np.array(np.arange(0, 20, .1))
 
 minus2logL_out=np.array([])
 logpost_out=np.array([])
+
+# #see if the tellurics are shifted
+# telluric_files = ['palomar_500.txt','palomar_1000.txt', 'palomar_5000.txt', 'palomar_10000.txt', 'palomar_20000.txt']
+# telluric_data = [np.loadtxt(open(file), usecols=(1,2)) for file in telluric_files]
+# telluric_wavelength=telluric_data[0][:,0]*1.e3
+# #print(telluric_wavelength)
+# telluric_500_counts=telluric_data[0][:,1]
+# telluric_1000_counts=telluric_data[1][:,1]
+# telluric_5000_counts=telluric_data[2][:,1]
+# telluric_10000_counts=telluric_data[3][:,1]
+# telluric_20000_counts=telluric_data[4][:,1]
+# crop_telluric=np.where((telluric_wavelength>1400) & (telluric_wavelength<1800))
+# telluric_wavelength=telluric_wavelength[crop_telluric]
+# telluric_500_counts=telluric_500_counts[crop_telluric]
 
 for i in range(len(rv)):
     #The parameter we are after is rv
     wvs_shifted= wvs*(1 - ((rv[i]-barycorr) / c_kms))
     model = scipy.interpolate.splev(wvs_shifted, model_spline, der=0)
-    transmission = scipy.interpolate.splev(wvs, transmission_spline, der=0)
+    #transmission = scipy.interpolate.splev(wvs, transmission_spline, der=0)
+    # plt.plot(wvs, transmission)
+    # plt.show()
     model= model*transmission 
+    #print(model)
     #filter model
-    model_filter=scipy.signal.medfilt(model, 101)
-    model=model-model_filter
+    #telluric_nans=np.where(np.isfinite(transmission))
     model=model[nans]
+    #model_filter=scipy.signal.medfilt(model, 501)
+    model_filter=np.nanmean(model)
+    model=model-model_filter
+    #model=model[nans]
     # print(np.isnan(np.sum(model)))
-
-    # plt.plot(new_range[nans], model*5, alpha=1, marker='o', color='royalblue', markersize=1, label='model')
-    # plt.plot(wave[nans], data, alpha=.5, marker='o', color='red', markersize=.1, label='data')
+    #transmission_test=scipy.signal.medfilt(transmission[nans], 501)
+    transmission_test=np.nanmean(transmission[nans])
+    transmission_test=transmission[nans]-transmission_test
+    # plt.plot(wvs[nans], transmission_test)
+    # plt.show()
+    # plt.plot(wvs[nans], (model/np.std(model)), alpha=1, marker='o', color='royalblue', markersize=.5, label='model')
+    # plt.plot(wvs[nans], (data/np.std(data)), alpha=.5, marker='o', color='red', markersize=.1, label='data')
+    # plt.plot(wvs[nans], (transmission_test/np.std(transmission_test))+5, alpha=.5, marker='o', color='green', markersize=.1, label='transmission from standard star')
+    # # #plt.plot(telluric_wavelength, ((telluric_500_counts/np.std(telluric_500_counts))-6)*10, alpha=.5, marker='o', color='orange', markersize=.1, label='simulated transmission (ATRAN)')
+    # plt.plot(wvs[nans], (scipy.interpolate.splev(wvs_shifted, model_spline, der=0)[nans])/np.std(scipy.interpolate.splev(wvs_shifted, model_spline, der=0)[nans]), marker='o', color='purple', markersize=.1, label='convolved stellar lines')
+    # # #plt.title('ATRAN vs Standard Star Telluric Data Epoch 2')
+    # # #plt.xlim([1500, 1520])
+    # # #plt.ylim([-15, 1])
     # plt.legend()
     # plt.show()
+    # exit()
 
     Npix = np.size(data)
     sigmas_vec = np.ones(np.size(data))*np.std(noise)
@@ -212,3 +276,44 @@ xmin = rv[np.argmin(minus2logL_out)]
 
 print(xmax)
 print(xmin)
+
+def get_err_from_posterior(x,posterior):
+            ind = np.argsort(posterior)
+            cum_posterior = np.zeros(np.shape(posterior))
+            cum_posterior[ind] = np.cumsum(posterior[ind])
+            cum_posterior = cum_posterior/np.max(cum_posterior)
+            argmax_post = np.argmax(cum_posterior)
+            if len(x[0:np.min([argmax_post+1,len(x)])]) < 2:
+                    lx = x[0]
+            else:
+                    tmp_cumpost = cum_posterior[0:np.min([argmax_post+1,len(x)])]
+                    tmp_x= x[0:np.min([argmax_post+1,len(x)])]
+                    deriv_tmp_cumpost = np.insert(tmp_cumpost[1::]-tmp_cumpost[0:np.size(tmp_cumpost)-1],np.size(tmp_cumpost)-1,0)
+                    try:
+                        whereinflection = np.where(deriv_tmp_cumpost<0)[0][0]
+                        where2keep = np.where((tmp_x<=tmp_x[whereinflection])+(tmp_cumpost>=tmp_cumpost[whereinflection]))
+                        tmp_cumpost = tmp_cumpost[where2keep]
+                        tmp_x = tmp_x[where2keep]
+                    except:
+                        pass
+                    lf = scipy.interpolate.interp1d(tmp_cumpost,tmp_x,bounds_error=False,fill_value=x[0])
+                    lx = lf(1-0.6827)
+            if len(x[argmax_post::]) < 2:
+                    rx=x[-1]
+            else:
+                    tmp_cumpost = cum_posterior[argmax_post::]
+                    tmp_x= x[argmax_post::]
+                    deriv_tmp_cumpost = np.insert(tmp_cumpost[1::]-tmp_cumpost[0:np.size(tmp_cumpost)-1],np.size(tmp_cumpost)-1,0)
+                    try:
+                        whereinflection = np.where(deriv_tmp_cumpost>0)[0][0]
+                        where2keep = np.where((tmp_x>=tmp_x[whereinflection])+(tmp_cumpost>=tmp_cumpost[whereinflection]))
+                        tmp_cumpost = tmp_cumpost[where2keep]
+                        tmp_x = tmp_x[where2keep]
+                    except:
+                        pass
+                    rf = scipy.interpolate.interp1d(tmp_cumpost,tmp_x,bounds_error=False,fill_value=x[-1])
+                    rx = rf(1-0.6827)
+            return lx,x[argmax_post],rx,argmax_post
+        
+error_posterior=get_err_from_posterior(rv, posterior)
+print(error_posterior)
